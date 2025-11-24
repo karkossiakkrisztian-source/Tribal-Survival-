@@ -1,4 +1,4 @@
--- Day and Night Cycle Script with Audio for Each Phase
+-- Day and Night Cycle Script with Smooth Transitions and Audio for Each Phase
 
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
@@ -24,7 +24,7 @@ local phases = {
     {
         name = "Morning",
         clockTime = 6, -- 6 AM
-		soundId = "rbxassetid://77204568349843",
+        soundId = "rbxassetid://77204568349843",
         atmosphere = {
             Density = 0.3,
             Offset = 0.2,
@@ -36,7 +36,7 @@ local phases = {
     {
         name = "Day",
         clockTime = 12, -- 12 PM
-		soundId = "rbxassetid://140113091967480",
+        soundId = "rbxassetid://140113091967480",
         atmosphere = {
             Density = 0.2,
             Offset = 0.1,
@@ -48,7 +48,7 @@ local phases = {
     {
         name = "Dusk",
         clockTime = 18, -- 6 PM
-		soundId = "rbxassetid://89855164381272",
+        soundId = "rbxassetid://89855164381272",
         atmosphere = {
             Density = 0.4,
             Offset = 0.3,
@@ -60,7 +60,7 @@ local phases = {
     {
         name = "Night",
         clockTime = 0, -- 12 AM
-		soundId = "rbxassetid://73249568819168",
+        soundId = "rbxassetid://73249568819168",
         atmosphere = {
             Density = 0.5,
             Offset = 0.4,
@@ -71,26 +71,112 @@ local phases = {
     }
 }
 
--- Function to apply atmosphere settings
-local function applyAtmosphere(settings)
-    for property, value in settings do
-        atmosphere[property] = value
+-- Helper function to interpolate between two values
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+local function colorLerp(a, b, t)
+    return Color3.new(
+        lerp(a.R, b.R, t),
+        lerp(a.G, b.G, t),
+        lerp(a.B, b.B, t)
+    )
+end
+
+-- Function to smoothly transition between two phases
+local function smoothTransition(fromPhase, toPhase, transitionTime)
+    local steps = math.floor(transitionTime / 0.1)
+    for i = 1, steps do
+        local t = i / steps
+
+        -- Handle ClockTime interpolation (wraps around at 24)
+        local startTime = fromPhase.clockTime
+        local endTime = toPhase.clockTime
+        local delta = endTime - startTime
+        if math.abs(delta) > 12 then
+            -- Wrap around midnight
+            if endTime < startTime then
+                endTime = endTime + 24
+            else
+                startTime = startTime + 24
+            end
+            delta = endTime - startTime
+        end
+        local clockTime = (lerp(startTime, endTime, t)) % 24
+        Lighting.ClockTime = clockTime
+
+        -- Atmosphere properties
+        atmosphere.Density = lerp(fromPhase.atmosphere.Density, toPhase.atmosphere.Density, t)
+        atmosphere.Offset = lerp(fromPhase.atmosphere.Offset, toPhase.atmosphere.Offset, t)
+        atmosphere.Color = colorLerp(fromPhase.atmosphere.Color, toPhase.atmosphere.Color, t)
+        atmosphere.Decay = colorLerp(fromPhase.atmosphere.Decay, toPhase.atmosphere.Decay, t)
+
+        -- Audio crossfade (fade out old, fade in new)
+        if i == 1 then
+            -- Start new phase sound at zero volume
+            phaseSound.SoundId = toPhase.soundId
+            phaseSound.Volume = 0
+            phaseSound:Play()
+        end
+        local fadeIn = t
+        local fadeOut = 1 - t
+        phaseSound.Volume = 0.5 * fadeIn
+
+        task.wait(0.1)
     end
+    -- Ensure final values are set
+    Lighting.ClockTime = toPhase.clockTime
+    atmosphere.Density = toPhase.atmosphere.Density
+    atmosphere.Offset = toPhase.atmosphere.Offset
+    atmosphere.Color = toPhase.atmosphere.Color
+    atmosphere.Decay = toPhase.atmosphere.Decay
+    phaseSound.Volume = 0.5
 end
 
 -- Main cycle loop
-while true do
-    for i, phase in phases do
-        Lighting.ClockTime = phase.clockTime
-        applyAtmosphere(phase.atmosphere)
+local transitionDuration = 8 -- seconds for each transition
 
-        -- Play phase audio
-        phaseSound.SoundId = phase.soundId
-        phaseSound:Stop()
-        phaseSound:Play()
-
-        print("Phase:", phase.name)
-        task.wait(phase.duration)
-    end
+-- Preload all phase sounds for smooth playback
+local soundPreload = {}
+for i, phase in phases do
+    local s = Instance.new("Sound")
+    s.SoundId = phase.soundId
+    s.Parent = Lighting
+    s.Volume = 0
+    s.Name = "Preload_" .. phase.name
+    s:Play()
+    s:Stop()
+    soundPreload[phase.name] = s
 end
+
+local currentPhaseIndex = 1
+while true do
+    local phase = phases[currentPhaseIndex]
+    -- Set phase instantly at start
+    Lighting.ClockTime = phase.clockTime
+    for property, value in phase.atmosphere do
+        atmosphere[property] = value
+    end
+    phaseSound.SoundId = phase.soundId
+    phaseSound.Volume = 0.5
+    phaseSound:Play()
+
+    print("Phase:", phase.name)
+    task.wait(phase.duration)
+
+    -- Next phase index (wrap around)
+    local nextPhaseIndex = currentPhaseIndex + 1
+    if nextPhaseIndex > #phases then
+        nextPhaseIndex = 1
+    end
+    local nextPhase = phases[nextPhaseIndex]
+
+    -- Smooth transition to next phase
+    smoothTransition(phase, nextPhase, transitionDuration)
+
+    currentPhaseIndex = nextPhaseIndex
+end
+
+
 

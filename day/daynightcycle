@@ -1,4 +1,4 @@
--- Day and Night Cycle Script with Smooth Transitions and Audio for Each Phase
+-- Day and Night Cycle Script with Smooth Transitions, Sunrise Animation, and Audio for Each Phase
 
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
@@ -6,132 +6,173 @@ local Workspace = game:GetService("Workspace")
 -- Ensure Atmosphere exists
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 if not atmosphere then
-    atmosphere = Instance.new("Atmosphere")
-    atmosphere.Parent = Lighting
+	atmosphere = Instance.new("Atmosphere")
+	atmosphere.Parent = Lighting
 end
 
 -- Create or get the Sound instance for phase audio
 local phaseSound = Lighting:FindFirstChild("PhaseSound")
 if not phaseSound then
-    phaseSound = Instance.new("Sound")
-    phaseSound.Name = "PhaseSound"
-    phaseSound.Parent = Lighting
-    phaseSound.Volume = 0.5
+	phaseSound = Instance.new("Sound")
+	phaseSound.Name = "PhaseSound"
+	phaseSound.Parent = Lighting
+	phaseSound.Volume = 0.5
 end
 
 -- Define phase settings
+-- Each phase duration is set so that the total day lasts 24 minutes (1440 seconds)
+local totalDaySeconds = 24 * 60 -- 1440 seconds
 local phases = {
-    {
-        name = "Morning",
-        clockTime = 6, -- 6 AM
-        soundId = "rbxassetid://77204568349843",
-        atmosphere = {
-            Density = 0.3,
-            Offset = 0.2,
-            Color = Color3.fromRGB(255, 220, 180),
-            Decay = Color3.fromRGB(255, 200, 150)
-        },
-        duration = 60 -- seconds
-    },
-    {
-        name = "Day",
-        clockTime = 12, -- 12 PM
-        soundId = "rbxassetid://140113091967480",
-        atmosphere = {
-            Density = 0.2,
-            Offset = 0.1,
-            Color = Color3.fromRGB(255, 255, 255),
-            Decay = Color3.fromRGB(255, 255, 255)
-        },
-        duration = 90
-    },
-    {
-        name = "Dusk",
-        clockTime = 18, -- 6 PM
-        soundId = "rbxassetid://89855164381272",
-        atmosphere = {
-            Density = 0.4,
-            Offset = 0.3,
-            Color = Color3.fromRGB(255, 170, 100),
-            Decay = Color3.fromRGB(255, 120, 80)
-        },
-        duration = 45
-    },
-    {
-        name = "Night",
-        clockTime = 0, -- 12 AM
-        soundId = "rbxassetid://73249568819168",
-        atmosphere = {
-            Density = 0.5,
-            Offset = 0.4,
-            Color = Color3.fromRGB(100, 120, 255),
-            Decay = Color3.fromRGB(80, 80, 120)
-        },
-        duration = 75
-    }
+	{
+		name = "Morning",
+		clockTime = 6, -- 6 AM
+		soundId = "rbxassetid://77204568349843",
+		atmosphere = {
+			Density = 0.3,
+			Offset = 0.2,
+			Color = Color3.fromRGB(255, 220, 180),
+			Decay = Color3.fromRGB(255, 200, 150)
+		},
+		duration = 360 -- 3 minutes
+	},
+	{
+		name = "Day",
+		clockTime = 12, -- 12 PM
+		soundId = "rbxassetid://140113091967480",
+		atmosphere = {
+			Density = 0.2,
+			Offset = 0.1,
+			Color = Color3.fromRGB(255, 255, 255),
+			Decay = Color3.fromRGB(255, 255, 255)
+		},
+		duration = 480 -- 8 minutes
+	},
+	{
+		name = "Dusk",
+		clockTime = 18, -- 6 PM
+		soundId = "rbxassetid://89855164381272",
+		atmosphere = {
+			Density = 0.4,
+			Offset = 0.3,
+			Color = Color3.fromRGB(255, 170, 100),
+			Decay = Color3.fromRGB(255, 120, 80)
+		},
+		duration = 240 -- 4 minutes
+	},
+	{
+		name = "Night",
+		clockTime = 0, -- 12 AM
+		soundId = "rbxassetid://73249568819168",
+		atmosphere = {
+			Density = 0.5,
+			Offset = 0.4,
+			Color = Color3.fromRGB(100, 120, 255),
+			Decay = Color3.fromRGB(80, 80, 120)
+		},
+		duration = 360 -- 6 minutes
+	}
 }
 
 -- Helper function to interpolate between two values
 local function lerp(a, b, t)
-    return a + (b - a) * t
+	return a + (b - a) * t
 end
 
 local function colorLerp(a, b, t)
-    return Color3.new(
-        lerp(a.R, b.R, t),
-        lerp(a.G, b.G, t),
-        lerp(a.B, b.B, t)
-    )
+	return Color3.new(
+		lerp(a.R, b.R, t),
+		lerp(a.G, b.G, t),
+		lerp(a.B, b.B, t)
+	)
 end
 
 -- Function to smoothly transition between two phases
 local function smoothTransition(fromPhase, toPhase, transitionTime)
-    local steps = math.floor(transitionTime / 0.1)
-    for i = 1, steps do
-        local t = i / steps
+	local steps = math.floor(transitionTime / 0.1)
+	for i = 1, steps do
+		local t = i / steps
 
-        -- Handle ClockTime interpolation (wraps around at 24)
-        local startTime = fromPhase.clockTime
-        local endTime = toPhase.clockTime
-        local delta = endTime - startTime
-        if math.abs(delta) > 12 then
-            -- Wrap around midnight
-            if endTime < startTime then
-                endTime = endTime + 24
-            else
-                startTime = startTime + 24
-            end
-            delta = endTime - startTime
-        end
-        local clockTime = (lerp(startTime, endTime, t)) % 24
-        Lighting.ClockTime = clockTime
+		-- Handle ClockTime interpolation (wraps around at 24)
+		local startTime = fromPhase.clockTime
+		local endTime = toPhase.clockTime
+		local delta = endTime - startTime
+		if math.abs(delta) > 12 then
+			-- Wrap around midnight
+			if endTime < startTime then
+				endTime = endTime + 24
+			else
+				startTime = startTime + 24
+			end
+			delta = endTime - startTime
+		end
+		local clockTime = (lerp(startTime, endTime, t)) % 24
+		Lighting.ClockTime = clockTime
 
-        -- Atmosphere properties
-        atmosphere.Density = lerp(fromPhase.atmosphere.Density, toPhase.atmosphere.Density, t)
-        atmosphere.Offset = lerp(fromPhase.atmosphere.Offset, toPhase.atmosphere.Offset, t)
-        atmosphere.Color = colorLerp(fromPhase.atmosphere.Color, toPhase.atmosphere.Color, t)
-        atmosphere.Decay = colorLerp(fromPhase.atmosphere.Decay, toPhase.atmosphere.Decay, t)
+		-- Atmosphere properties
+		atmosphere.Density = lerp(fromPhase.atmosphere.Density, toPhase.atmosphere.Density, t)
+		atmosphere.Offset = lerp(fromPhase.atmosphere.Offset, toPhase.atmosphere.Offset, t)
+		atmosphere.Color = colorLerp(fromPhase.atmosphere.Color, toPhase.atmosphere.Color, t)
+		atmosphere.Decay = colorLerp(fromPhase.atmosphere.Decay, toPhase.atmosphere.Decay, t)
 
-        -- Audio crossfade (fade out old, fade in new)
-        if i == 1 then
-            -- Start new phase sound at zero volume
-            phaseSound.SoundId = toPhase.soundId
-            phaseSound.Volume = 0
-            phaseSound:Play()
-        end
-        local fadeIn = t
-        local fadeOut = 1 - t
-        phaseSound.Volume = 0.5 * fadeIn
+		-- Audio crossfade (fade out old, fade in new)
+		if i == 1 then
+			-- Start new phase sound at zero volume
+			phaseSound.SoundId = toPhase.soundId
+			phaseSound.Volume = 0
+			phaseSound:Play()
+		end
+		local fadeIn = t
+		local fadeOut = 1 - t
+		phaseSound.Volume = 0.5 * fadeIn
 
-        task.wait(0.1)
-    end
-    -- Ensure final values are set
-    Lighting.ClockTime = toPhase.clockTime
-    atmosphere.Density = toPhase.atmosphere.Density
-    atmosphere.Offset = toPhase.atmosphere.Offset
-    atmosphere.Color = toPhase.atmosphere.Color
-    atmosphere.Decay = toPhase.atmosphere.Decay
-    phaseSound.Volume = 0.5
+		task.wait(0.1)
+	end
+	-- Ensure final values are set
+	Lighting.ClockTime = toPhase.clockTime
+	atmosphere.Density = toPhase.atmosphere.Density
+	atmosphere.Offset = toPhase.atmosphere.Offset
+	atmosphere.Color = toPhase.atmosphere.Color
+	atmosphere.Decay = toPhase.atmosphere.Decay
+	phaseSound.Volume = 0.5
+end
+
+-- Sunrise animation function for Morning phase
+local function sunriseAnimation(phase, sunriseDuration, startClockTime, endClockTime)
+	local steps = math.floor(sunriseDuration / 0.1)
+	for i = 1, steps do
+		local t = i / steps
+		Lighting.ClockTime = lerp(startClockTime, endClockTime, t)
+		-- Atmosphere properties can also be interpolated if desired
+		atmosphere.Density = lerp(0.4, phase.atmosphere.Density, t) -- Start a bit denser pre-dawn
+		atmosphere.Offset = lerp(0.3, phase.atmosphere.Offset, t)
+		atmosphere.Color = colorLerp(Color3.fromRGB(80, 80, 120), phase.atmosphere.Color, t)
+		atmosphere.Decay = colorLerp(Color3.fromRGB(80, 80, 120), phase.atmosphere.Decay, t)
+		task.wait(0.1)
+	end
+	-- Ensure final values are set
+	Lighting.ClockTime = endClockTime
+	for property, value in phase.atmosphere do
+		atmosphere[property] = value
+	end
+end
+
+-- Sun rises from 6 AM to 12 PM at start of Day phase
+local function sunToNoonAnimation(dayPhase, duration, startClockTime, endClockTime)
+	local steps = math.floor(duration / 0.1)
+	for i = 1, steps do
+		local t = i / steps
+		Lighting.ClockTime = lerp(startClockTime, endClockTime, t)
+		-- Optionally interpolate atmosphere properties if desired
+		atmosphere.Density = lerp(dayPhase.atmosphere.Density, dayPhase.atmosphere.Density, t)
+		atmosphere.Offset = lerp(dayPhase.atmosphere.Offset, dayPhase.atmosphere.Offset, t)
+		atmosphere.Color = colorLerp(dayPhase.atmosphere.Color, dayPhase.atmosphere.Color, t)
+		atmosphere.Decay = colorLerp(dayPhase.atmosphere.Decay, dayPhase.atmosphere.Decay, t)
+		task.wait(0.1)
+	end
+	Lighting.ClockTime = endClockTime
+	for property, value in dayPhase.atmosphere do
+		atmosphere[property] = value
+	end
 end
 
 -- Main cycle loop
@@ -140,42 +181,82 @@ local transitionDuration = 8 -- seconds for each transition
 -- Preload all phase sounds for smooth playback
 local soundPreload = {}
 for i, phase in phases do
-    local s = Instance.new("Sound")
-    s.SoundId = phase.soundId
-    s.Parent = Lighting
-    s.Volume = 0
-    s.Name = "Preload_" .. phase.name
-    s:Play()
-    s:Stop()
-    soundPreload[phase.name] = s
+	local s = Instance.new("Sound")
+	s.SoundId = phase.soundId
+	s.Parent = Lighting
+	s.Volume = 0
+	s.Name = "Preload_" .. phase.name
+	s:Play()
+	s:Stop()
+	soundPreload[phase.name] = s
 end
 
 local currentPhaseIndex = 1
 while true do
-    local phase = phases[currentPhaseIndex]
-    -- Set phase instantly at start
-    Lighting.ClockTime = phase.clockTime
-    for property, value in phase.atmosphere do
-        atmosphere[property] = value
-    end
-    phaseSound.SoundId = phase.soundId
-    phaseSound.Volume = 0.5
-    phaseSound:Play()
+	local phase = phases[currentPhaseIndex]
 
-    print("Phase:", phase.name)
-    task.wait(phase.duration)
+	if phase.name == "Morning" then
+		-- Sunrise animation: smoothly move sun from 4 to 6 AM over 1 minute
+		local sunriseDuration = 60 -- seconds (first minute of morning)
+		local restDuration = phase.duration - sunriseDuration
 
-    -- Next phase index (wrap around)
-    local nextPhaseIndex = currentPhaseIndex + 1
-    if nextPhaseIndex > #phases then
-        nextPhaseIndex = 1
-    end
-    local nextPhase = phases[nextPhaseIndex]
+		-- Start phase sound
+		phaseSound.SoundId = phase.soundId
+		phaseSound.Volume = 0.5
+		phaseSound:Play()
 
-    -- Smooth transition to next phase
-    smoothTransition(phase, nextPhase, transitionDuration)
+		print("Phase: Sunrise (Morning)")
+		sunriseAnimation(phase, sunriseDuration, 4, 6)
 
-    currentPhaseIndex = nextPhaseIndex
+		print("Phase: Morning (Sun is up)")
+		Lighting.ClockTime = phase.clockTime
+		for property, value in phase.atmosphere do
+			atmosphere[property] = value
+		end
+		task.wait(restDuration)
+	elseif phase.name == "Day" then
+		-- Sun rises from 6 AM to 12 PM over 1 minute at start of Day phase
+		local sunToNoonDuration = 60 -- seconds (first minute of day)
+		local restDuration = phase.duration - sunToNoonDuration
+
+		phaseSound.SoundId = phase.soundId
+		phaseSound.Volume = 0.5
+		phaseSound:Play()
+
+		print("Phase: Sun to Noon (Day)")
+		sunToNoonAnimation(phase, sunToNoonDuration, 6, 12)
+
+		print("Phase: Day (Sun at Noon)")
+		Lighting.ClockTime = phase.clockTime
+		for property, value in phase.atmosphere do
+			atmosphere[property] = value
+		end
+		task.wait(restDuration)
+	else
+		-- Set phase instantly at start
+		Lighting.ClockTime = phase.clockTime
+		for property, value in phase.atmosphere do
+			atmosphere[property] = value
+		end
+		phaseSound.SoundId = phase.soundId
+		phaseSound.Volume = 0.5
+		phaseSound:Play()
+
+		print("Phase:", phase.name)
+		task.wait(phase.duration)
+	end
+
+	-- Next phase index (wrap around)
+	local nextPhaseIndex = currentPhaseIndex + 1
+	if nextPhaseIndex > #phases then
+		nextPhaseIndex = 1
+	end
+	local nextPhase = phases[nextPhaseIndex]
+
+	-- Smooth transition to next phase
+	smoothTransition(phase, nextPhase, transitionDuration)
+
+	currentPhaseIndex = nextPhaseIndex
 end
 
 

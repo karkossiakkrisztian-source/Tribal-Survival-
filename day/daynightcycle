@@ -175,6 +175,23 @@ local function sunToNoonAnimation(dayPhase, duration, startClockTime, endClockTi
 	end
 end
 
+-- Wait for a sound to finish playing
+local function waitForSoundEnd(sound)
+	if sound.IsPlaying then
+		local ended = false
+		local conn
+		conn = sound.Ended:Connect(function()
+			ended = true
+		end)
+		while not ended and sound.IsPlaying do
+			task.wait(0.1)
+		end
+		if conn then
+			conn:Disconnect()
+		end
+	end
+end
+
 -- Main cycle loop
 local transitionDuration = 8 -- seconds for each transition
 
@@ -208,6 +225,9 @@ while true do
 		print("Phase: Sunrise (Morning)")
 		sunriseAnimation(phase, sunriseDuration, 4, 6)
 
+		-- Wait for sound to finish before continuing
+		waitForSoundEnd(phaseSound)
+
 		print("Phase: Morning (Sun is up)")
 		Lighting.ClockTime = phase.clockTime
 		for property, value in phase.atmosphere do
@@ -215,16 +235,19 @@ while true do
 		end
 		task.wait(restDuration)
 	elseif phase.name == "Day" then
-		-- Sun rises from 6 AM to 12 PM over 1 minute at start of Day phase
-		local sunToNoonDuration = 60 -- seconds (first minute of day)
+		-- Sun rises from 6 AM to 12 PM over 1 minute after morning phase ends and after a minute, day phase starts
+		local sunToNoonDuration = 60 -- seconds (first minute before day phase starts)
 		local restDuration = phase.duration - sunToNoonDuration
 
+		-- Wait for previous phase's sound to finish (already handled in previous phase)
+		-- Start sun-to-noon animation BEFORE starting day phase
+		print("Phase: Sun to Noon (Transition to Day)")
+		sunToNoonAnimation(phase, sunToNoonDuration, 6, 12)
+
+		-- Now start the day phase sound and timer
 		phaseSound.SoundId = phase.soundId
 		phaseSound.Volume = 0.5
 		phaseSound:Play()
-
-		print("Phase: Sun to Noon (Day)")
-		sunToNoonAnimation(phase, sunToNoonDuration, 6, 12)
 
 		print("Phase: Day (Sun at Noon)")
 		Lighting.ClockTime = phase.clockTime
@@ -232,6 +255,34 @@ while true do
 			atmosphere[property] = value
 		end
 		task.wait(restDuration)
+	elseif phase.name == "Dusk" then
+		-- Dusk phase: play sound, wait for it to finish, then continue
+		phaseSound.SoundId = phase.soundId
+		phaseSound.Volume = 0.5
+		phaseSound:Play()
+
+		waitForSoundEnd(phaseSound)
+
+		Lighting.ClockTime = phase.clockTime
+		for property, value in phase.atmosphere do
+			atmosphere[property] = value
+		end
+		print("Phase: Dusk")
+		task.wait(phase.duration)
+	elseif phase.name == "Night" then
+		-- Night phase: play sound, wait for it to finish, then continue
+		phaseSound.SoundId = phase.soundId
+		phaseSound.Volume = 0.5
+		phaseSound:Play()
+
+		waitForSoundEnd(phaseSound)
+
+		Lighting.ClockTime = phase.clockTime
+		for property, value in phase.atmosphere do
+			atmosphere[property] = value
+		end
+		print("Phase: Night")
+		task.wait(phase.duration)
 	else
 		-- Set phase instantly at start
 		Lighting.ClockTime = phase.clockTime

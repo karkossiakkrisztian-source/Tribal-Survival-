@@ -27,6 +27,7 @@ local phases = {
 		name = "Morning",
 		clockTime = 6, -- 6 AM
 		soundId = "rbxassetid://77204568349843",
+		soundId2 = "rbxassetid://7755839253", -- Added second sound ID for Morning
 		atmosphere = {
 			Density = 0.3,
 			Offset = 0.2,
@@ -39,13 +40,14 @@ local phases = {
 		name = "Day",
 		clockTime = 12, -- 12 PM
 		soundId = "rbxassetid://140113091967480",
+		soundId2 = "rbxassetid://9112781689", -- Added second sound ID for Day
 		atmosphere = {
 			Density = 0.2,
 			Offset = 0.1,
 			Color = Color3.fromRGB(255, 255, 255),
 			Decay = Color3.fromRGB(255, 255, 255)
 		},
-		duration = 480 -- 8 minutes
+		duration = 100 
 	},
 	{
 		name = "Dusk",
@@ -89,6 +91,8 @@ end
 -- Function to smoothly transition between two phases
 local function smoothTransition(fromPhase, toPhase, transitionTime)
 	local steps = math.floor(transitionTime / 0.1)
+	-- Stop any currently playing sound before starting transition
+	phaseSound:Stop()
 	for i = 1, steps do
 		local t = i / steps
 
@@ -122,7 +126,6 @@ local function smoothTransition(fromPhase, toPhase, transitionTime)
 			phaseSound:Play()
 		end
 		local fadeIn = t
-		local fadeOut = 1 - t
 		phaseSound.Volume = 0.5 * fadeIn
 
 		task.wait(0.1)
@@ -215,8 +218,6 @@ while true do
 	if phase.name == "Morning" then
 		-- Sunrise animation: smoothly move sun from 4 to 6 AM over 1 minute
 		local sunriseDuration = 60 -- seconds (first minute of morning)
-		--local restDuration = phase.duration - sunriseDuration
-
 		-- Start phase sound
 		phaseSound.SoundId = phase.soundId
 		phaseSound.Volume = 0.5
@@ -228,17 +229,23 @@ while true do
 		-- Wait for sound to finish before continuing
 		waitForSoundEnd(phaseSound)
 
+		-- Play second sound if present
+		if phase.soundId2 then
+			phaseSound.SoundId = phase.soundId2
+			phaseSound.Volume = 0.5
+			phaseSound:Play()
+			waitForSoundEnd(phaseSound)
+		end
+
 		print("Phase: Morning (Sun is up)")
 		Lighting.ClockTime = phase.clockTime
 		for property, value in phase.atmosphere do
 			atmosphere[property] = value
 		end
-		-- task.wait(restDuration) -- REMOVE: phase switches after sound ends
+		-- Phase switches immediately after sound ends
 	elseif phase.name == "Day" then
 		-- Sun rises from 6 AM to 12 PM over 1 minute after morning phase ends and after a minute, day phase starts
 		local sunToNoonDuration = 60 -- seconds (first minute before day phase starts)
-		--local restDuration = phase.duration - sunToNoonDuration
-
 		-- Wait for previous phase's sound to finish (already handled in previous phase)
 		-- Start sun-to-noon animation BEFORE starting day phase
 		print("Phase: Sun to Noon (Transition to Day)")
@@ -249,13 +256,32 @@ while true do
 		phaseSound.Volume = 0.5
 		phaseSound:Play()
 
+		waitForSoundEnd(phaseSound)
+
+		-- Play second sound if present
+		if phase.soundId2 then
+			phaseSound.SoundId = phase.soundId2
+			phaseSound.Volume = 0.5
+			phaseSound:Play()
+			waitForSoundEnd(phaseSound)
+		end
+
 		print("Phase: Day (Sun at Noon)")
 		Lighting.ClockTime = phase.clockTime
 		for property, value in phase.atmosphere do
 			atmosphere[property] = value
 		end
-		waitForSoundEnd(phaseSound) -- Wait for sound to end before switching phase
-		-- task.wait(restDuration) -- REMOVE: phase switches after sound ends
+
+		-- Immediately transition to Dusk after Day sound ends
+		local nextPhaseIndex = currentPhaseIndex + 1
+		if nextPhaseIndex > #phases then
+			nextPhaseIndex = 1
+		end
+		local nextPhase = phases[nextPhaseIndex]
+		smoothTransition(phase, nextPhase, transitionDuration)
+		currentPhaseIndex = nextPhaseIndex
+		-- Continue to next loop iteration
+		continue
 	elseif phase.name == "Dusk" then
 		-- Dusk phase: play sound, wait for it to finish, then continue
 		phaseSound.SoundId = phase.soundId
@@ -269,7 +295,7 @@ while true do
 			atmosphere[property] = value
 		end
 		print("Phase: Dusk")
-		-- task.wait(phase.duration) -- REMOVE: phase switches after sound ends
+		-- Phase switches immediately after sound ends
 	elseif phase.name == "Night" then
 		-- Night phase: play sound, wait for it to finish, then continue
 		phaseSound.SoundId = phase.soundId
@@ -283,7 +309,7 @@ while true do
 			atmosphere[property] = value
 		end
 		print("Phase: Night")
-		-- task.wait(phase.duration) -- REMOVE: phase switches after sound ends
+		-- Phase switches immediately after sound ends
 	else
 		-- Set phase instantly at start
 		Lighting.ClockTime = phase.clockTime
@@ -296,7 +322,7 @@ while true do
 
 		print("Phase:", phase.name)
 		waitForSoundEnd(phaseSound) -- Wait for sound to end before switching phase
-		-- task.wait(phase.duration) -- REMOVE: phase switches after sound ends
+		-- Phase switches immediately after sound ends
 	end
 
 	-- Next phase index (wrap around)
@@ -311,6 +337,8 @@ while true do
 
 	currentPhaseIndex = nextPhaseIndex
 end
+
+
 
 
 
